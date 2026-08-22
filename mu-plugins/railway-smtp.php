@@ -53,12 +53,27 @@ add_action('phpmailer_init', function ($phpmailer) {
     $phpmailer->Timeout = 15;
 }, 10, 1);
 
-add_filter('wp_mail_from', function ($from) {
-    $configured = railway_smtp_env('WORDPRESS_MAIL_FROM');
-    return $configured !== '' ? $configured : $from;
-});
+/**
+ * Sender identity.
+ *
+ * Priority 99, not the default 10, and registered only when the variable is
+ * actually set. WC_Emails hooks wp_mail_from at priority 10 to return
+ * woocommerce_email_from_address, and because this is a must-use plugin it loads
+ * *before* WooCommerce — so at equal priority WooCommerce runs second and wins,
+ * for every wp_mail() on the site rather than only its own. That silently made
+ * WORDPRESS_MAIL_FROM a dead variable.
+ *
+ * With this ordering the variable governs when the operator sets it, and
+ * WooCommerce → Settings → Emails governs when they do not.
+ */
+if (railway_smtp_env('WORDPRESS_MAIL_FROM') !== '') {
+    add_filter('wp_mail_from', function () {
+        return railway_smtp_env('WORDPRESS_MAIL_FROM');
+    }, 99);
+}
 
-add_filter('wp_mail_from_name', function ($name) {
-    $configured = railway_smtp_env('WORDPRESS_MAIL_FROM_NAME');
-    return $configured !== '' ? $configured : $name;
-});
+if (railway_smtp_env('WORDPRESS_MAIL_FROM_NAME') !== '') {
+    add_filter('wp_mail_from_name', function () {
+        return railway_smtp_env('WORDPRESS_MAIL_FROM_NAME');
+    }, 99);
+}

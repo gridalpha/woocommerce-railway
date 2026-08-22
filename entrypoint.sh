@@ -66,7 +66,24 @@ fi
 apache2ctl -t
 
 # ---------------------------------------------------------------------------
-# 4. Deferred setup, behind the exec
+# 4. wp-config.php constants
+#
+# The upstream image eval()s WORDPRESS_CONFIG_EXTRA inside wp-config.php. Keeping
+# that block in a repo file rather than a Railway variable makes it reviewable and
+# diffable, and keeps a ~2 KB value out of the published template — where large
+# variable contents are replaced with placeholder text. An operator setting the
+# variable themselves still wins.
+# ---------------------------------------------------------------------------
+if [ -z "${WORDPRESS_CONFIG_EXTRA:-}" ] && [ -s /usr/local/share/railway/wp-config-extra.php ]; then
+    WORDPRESS_CONFIG_EXTRA="$(cat /usr/local/share/railway/wp-config-extra.php)"
+    export WORDPRESS_CONFIG_EXTRA
+    log 'WORDPRESS_CONFIG_EXTRA loaded from the image'
+else
+    log 'WORDPRESS_CONFIG_EXTRA supplied by the environment; the repo default is not used'
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Deferred setup, behind the exec
 # ---------------------------------------------------------------------------
 setup() {
     # The upstream entrypoint copies WordPress out of /usr/src/wordpress and

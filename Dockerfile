@@ -53,6 +53,7 @@ RUN set -eux; \
 # this image actually ships them, unlike the one-shot wp-content copy above.
 COPY mu-plugins/ /usr/local/share/railway/mu-plugins/
 COPY bootstrap-db.php /usr/local/share/railway/bootstrap-db.php
+COPY wp-config-extra.php /usr/local/share/railway/wp-config-extra.php
 COPY entrypoint.sh /usr/local/bin/railway-entrypoint.sh
 RUN chmod +x /usr/local/bin/railway-entrypoint.sh
 

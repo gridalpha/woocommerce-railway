@@ -166,6 +166,7 @@ setup() {
     fi
 
     configure_store
+    launch_store
 
     chown -R www-data:www-data "${WP_PATH}/wp-content"
     log 'setup complete.'
@@ -214,6 +215,32 @@ configure_store() {
     fi
 
     wpc option update railway_store_seeded done >/dev/null 2>&1 || true
+}
+
+# WooCommerce puts every new install behind its "Coming soon" page — the whole
+# site answers "Something big is brewing!", products included — and clears it only
+# when someone walks the Launch Your Store task. Marking the onboarding profile
+# complete does not touch it, so without this a template deploy hands its user a
+# placeholder rather than a shop, with the catalogue reachable only through the
+# Store API.
+#
+# This carries its own marker rather than riding on railway_store_seeded: each
+# concern needs a separate one, so that adding a step in a later image can never
+# re-run — and so revert — the settings an operator has since changed.
+# Site visibility stays operator-controlled at WooCommerce → Settings → General.
+launch_store() {
+    [ "$(wpc option get railway_store_launched 2>/dev/null || true)" = 'done' ] && return 0
+    wpc plugin is-active woocommerce >/dev/null 2>&1 || return 0
+
+    if [ "${WOOCOMMERCE_COMING_SOON:-false}" = 'true' ]; then
+        wpc option update woocommerce_coming_soon yes >/dev/null 2>&1 || true
+        log 'store left in Coming Soon mode (WOOCOMMERCE_COMING_SOON=true)'
+    else
+        wpc option update woocommerce_coming_soon no        >/dev/null 2>&1 || true
+        wpc option update woocommerce_store_pages_only no   >/dev/null 2>&1 || true
+        log 'store is live (Coming Soon cleared)'
+    fi
+    wpc option update railway_store_launched done >/dev/null 2>&1 || true
 }
 
 # A store with no products renders every template as an empty state, which reads

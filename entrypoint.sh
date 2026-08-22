@@ -167,6 +167,7 @@ setup() {
 
     configure_store
     launch_store
+    seed_product_images
 
     chown -R www-data:www-data "${WP_PATH}/wp-content"
     log 'setup complete.'
@@ -271,6 +272,49 @@ House Blend, 1kg|RW-BEAN-05|27.50|A chocolate-forward blend of washed Colombian 
 Insulated Travel Mug|RW-MUG-06|29.00|Vacuum-sealed 350 ml tumbler that holds temperature for six hours.
 PRODUCTS
     log "sample catalogue seeded (${created} products)"
+}
+
+# Give the seeded products a featured image. Separate from configure_store both
+# because it has its own marker and because it runs after the catalogue exists —
+# the products are matched by the SKU seeded above, so an image is never attached
+# to something the operator created.
+#
+# The files are drawn shapes generated for this repository, not photographs and
+# not third-party assets, so the image carries no licence obligation. They are
+# also the only thing standing between a fresh deploy and a shop full of
+# WooCommerce's grey placeholder tile.
+seed_product_images() {
+    [ "$(wpc option get railway_product_images 2>/dev/null || true)" = 'done' ] && return 0
+    [ "${WOOCOMMERCE_SEED_SAMPLE_PRODUCTS:-true}" = 'true' ] || return 0
+    wpc plugin is-active woocommerce >/dev/null 2>&1 || return 0
+
+    local dir=/usr/local/share/railway/sample-images
+    [ -d "${dir}" ] || return 0
+
+    local attached=0 sku file pid
+    while IFS='|' read -r sku file; do
+        [ -n "${sku}" ] || continue
+        [ -f "${dir}/${file}" ] || continue
+        pid="$(wpc post list --post_type=product --meta_key=_sku --meta_value="${sku}" \
+                 --field=ID --posts_per_page=1 --format=ids 2>/dev/null </dev/null | tr -d '[:space:]')"
+        [ -n "${pid}" ] || continue
+        # Do not overwrite an image the operator has already chosen.
+        [ -n "$(wpc post meta get "${pid}" _thumbnail_id 2>/dev/null </dev/null || true)" ] && continue
+        if wpc media import "${dir}/${file}" --post_id="${pid}" --featured_image \
+             --title="${sku}" </dev/null >/dev/null 2>&1; then
+            attached=$((attached + 1))
+        fi
+    done <<'IMAGES'
+RW-POUR-01|ceramic-pour-over-set.jpg
+RW-CARAFE-02|cold-brew-carafe.jpg
+RW-GRIND-03|burr-hand-grinder.jpg
+RW-TAMP-04|espresso-tamper.jpg
+RW-BEAN-05|house-blend-1kg.jpg
+RW-MUG-06|insulated-travel-mug.jpg
+IMAGES
+
+    log "product images attached (${attached})"
+    wpc option update railway_product_images done >/dev/null 2>&1 || true
 }
 
 # WordPress fires its scheduler from incoming page requests, which on a quiet
